@@ -1,7 +1,9 @@
 from lxml import html
 import requests
+
 from actor import Actor
 from movie import Movie
+from connection import Connection
 
 '''
 movie_url = "http://www.imdb.com/title/tt1179933" #MOVIE URL
@@ -24,6 +26,58 @@ for actor in path_to_odd_class:
     print(actor_name + " : " + actor_url)
 '''
 
+def IMDB_scrapper(actor_name, degree):
+    scraped_actors = {}
+    scraped_movies = set()
+    root_actor = find_actor(actor_name)
+    root_connect = Connection('root', root_actor.get_name(), 0, 'root')
+    scraped_actors[root_actor.get_name()] = root_connect
+    print("0\n")
+    if degree == 0:
+        return scraped_actors
+    scraped_actors, scraped_movies, unscraped_actors = scrape_actor(root_actor, scraped_actors, scraped_movies, 1)
+    print("1\n")
+    if degree < 2:
+        return scraped_actors
+    for i in range(2, degree + 1):
+        temp_list = []
+        for actor in unscraped_actors:
+            scraped_actors, scraped_movies, part_unscraped_actors = scrape_actor(actor, scraped_actors, scraped_movies, i)
+            temp_list += part_unscraped_actors
+        unscraped_actors = temp_list
+        print(str(i)+"\n")
+    return scraped_actors
+
+
+
+def scrape_actor(actor, actor_dict, movie_set, degree):
+    print(actor.get_name())
+    frontier_cast = []
+    movies = list_movies_of_actor(actor.get_url())
+    movie_idx = 3
+    if len(movies) < 3:
+        movie_idx = len(movies)
+    #for movie in movies:
+    for i in range(movie_idx):
+        movie = movies[i]
+        if not movie.get_url() in movie_set:
+            movie_set.add(movie.get_url())
+            print(movie.get_title())
+            cast = list_cast_of_movie(movie.get_url())
+            #for co_actor in cast:
+            idx = 5
+            if len(cast) < 5:
+                idx = len(cast)
+            for i in range(idx):
+                co_actor = cast[i]
+                if not co_actor.get_name() in actor_dict:
+                    connect = Connection(actor.get_name(), co_actor.get_name(), degree, movie.get_title())
+                    actor_dict[co_actor.get_name()] = connect
+                    frontier_cast.append(co_actor)
+    return actor_dict, movie_set, frontier_cast
+
+
+
 def find_actor(actor_name):
     search_url = "http://www.imdb.com/find?q=" + actor_name
     cast_page = requests.get(search_url)
@@ -34,11 +88,11 @@ def find_actor(actor_name):
     act = Actor(actor_name, actor_url)
     return act
 
-
+#return everything except TV Series
 def list_movies_of_actor(actor_url):
     cast_page = requests.get(actor_url)
     cast_tree = html.fromstring(cast_page.text)
-    path_to_movies = cast_tree.xpath('//div[@class="filmo-category-section"]/div/b/a')
+    path_to_movies = cast_tree.xpath('//div[@class="filmo-category-section"]/div[not(text()[contains(., "TV Series")])]/b/a')
     movie_list = []
     for mov in path_to_movies:
         movie_name = mov.text
@@ -63,14 +117,23 @@ def strip_url(url):
     url = url[:-1]
     return url
 
-kevin = find_actor("Amy Anderson")
-kevins_movies = list_movies_of_actor(kevin.get_url())
-for mov in kevins_movies:
-    cast_of_movie = list_cast_of_movie(mov.get_url())
-    for co_actor in cast_of_movie:
-        if not co_actor.get_url() == kevin.get_url():
-            kevin.add_co_actor(co_actor.get_name(), mov.get_title())
-            print(co_actor.get_name()+" : "+mov.get_title())
+
+
+# kevin = find_actor("Kevin Bacon")
+# kevins_movies = list_movies_of_actor(kevin.get_url())
+# for mov in kevins_movies:
+#     cast_of_movie = list_cast_of_movie(mov.get_url())
+#     for co_actor in cast_of_movie:
+#         if not co_actor.get_url() == kevin.get_url():
+#             kevin.add_co_actor(co_actor.get_name(), mov.get_title())
+#             print(co_actor.get_name()+" : "+mov.get_title())
+
+dict = IMDB_scrapper("Sophie Cookson", 4)
+print(dict["Taron Egerton"])
+print(dict["Kate Beckinsale"])
+print(dict["Tobias Menzies"])
+print(dict["Riz Ahmed"])
+
 
 
 
