@@ -1,6 +1,6 @@
 from lxml import html
 import requests
-
+import pandas
 from actor import Actor
 from movie import Movie
 from connection import Connection
@@ -26,7 +26,53 @@ for actor in path_to_odd_class:
     print(actor_name + " : " + actor_url)
 '''
 
-def IMDB_scrapper(actor_name, degree):
+#TODO finsih scraper class with caching
+class Scraper:
+
+    def __init__(self, path=".", caching=True):
+        if caching:
+            self.__ac = None
+            self.__mc = None
+            self.__amc = None
+            self._cached = False
+            self.__path = path
+            self.get_cached(path)
+
+    def get_cached(self, path):
+        try:
+            self.__ac = pandas.read_csv(path + "/actors.csv")
+        except IOError:
+            self.__ac = pandas.DataFrame(columns=["actor_name", "actor_url"])
+
+        try:
+           self.__mc = pandas.read_csv(path + "/movies.csv")
+        except IOError:
+            self.__mc = pandas.DataFrame(columns=["movie_title", "movie_url"])
+
+        try:
+            self.__amc = pandas.read_csv(path + "/actor_movie.csv")
+        except IOError:
+            self.__amc = pandas.DataFrame(columns=["actor_url", "movie_url"])
+
+        self._cached = True
+
+    def list_movies_of_actor(self, actor):
+        cast_page = requests.get(actor.get_url())
+        cast_tree = html.fromstring(cast_page.text)
+        path_to_movies = cast_tree.xpath(
+            '//div[@class="filmo-category-section"]/div[not(text()[contains(., "TV Series")])]/b/a')
+        movie_list = []
+        for mov in path_to_movies:
+            movie_name = mov.text
+            movie_url = strip_url("http://www.imdb.com" + mov.attrib.get('href'))
+            movie_list.append(Movie(movie_name, movie_url))
+            if self._cached:
+                self.__ac.append([actor.get_name(), actor.get_url()])
+                self.__amc.append([actor.get_url(), movie_url])
+        return movie_list
+
+
+def IMDB_scraper(actor_name, degree):
     scraped_actors = {}
     scraped_movies = set()
     root_actor = find_actor(actor_name)
@@ -100,6 +146,7 @@ def list_movies_of_actor(actor_url):
         movie_list.append(Movie(movie_name, movie_url))
     return movie_list
 
+
 def list_cast_of_movie(movie_url):
     cast_url = movie_url + "/fullcredits?ref_=tt_ov_st_sm"
     cast_page = requests.get(cast_url)
@@ -112,11 +159,23 @@ def list_cast_of_movie(movie_url):
         actor_list.append(Actor(actor_name, actor_url))
     return actor_list
 
+
 def strip_url(url):
     url = url.split("?")[0]
     url = url[:-1]
     return url
 
+
+def get_path(dict, actor):
+    if actor in dict:
+        connect = dict[actor]
+        print("START PATH")
+        while connect.get_degree() > 0:
+            print(connect.get_to()+" --["+connect.get_movie()+"]--> "+connect.get_from())
+            connect=dict[connect.get_from()]
+        print("END PATH\n")
+    else:
+        print("ACTOR: "+actor+" NOT FOUND")
 
 
 # kevin = find_actor("Kevin Bacon")
@@ -128,12 +187,11 @@ def strip_url(url):
 #             kevin.add_co_actor(co_actor.get_name(), mov.get_title())
 #             print(co_actor.get_name()+" : "+mov.get_title())
 
-dict = IMDB_scrapper("Sophie Cookson", 4)
-print(dict["Taron Egerton"])
-print(dict["Kate Beckinsale"])
-print(dict["Tobias Menzies"])
-print(dict["Riz Ahmed"])
-
-
-
+dict = IMDB_scraper("Kevin Bacon", 3 )
+print(dict["Mark Wahlberg"])
+print(dict["Christian Bale"])
+print(dict["Cate Blanchett"])
+print(dict["Jake Gyllenhaal"])
+get_path(dict, "Cate Blanchett")
+get_path(dict, "Jake Gyllenhaal")
 

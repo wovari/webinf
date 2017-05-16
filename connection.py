@@ -8,3 +8,15 @@ class Connection:
     def __str__(self):
         returnstring = "\nFROM: "+self.__from+"\nTO: "+self.__to+"\nDEGREE: "+str(self.__degree)+"\nMOVIE: "+self.__movie
         return returnstring
+
+    def get_degree(self):
+        return self.__degree
+
+    def get_from(self):
+        return self.__from
+
+    def get_to(self):
+        return self.__to
+
+    def get_movie(self):
+        return self.__movie
