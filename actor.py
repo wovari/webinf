@@ -1,25 +1,34 @@
+from movie import Movie
+
+
 class Actor:
+
     def __init__(self, name, url):
-        self.__name = name
-        self.__url = url
+        self.name = name
+        self.url = url
+        self.connections = {}
+        self.degree = -1
 
     def __repr__(self):
-        return "Actor(%s,%s)"%(self.__name, self.__url)
+        return "Actor(%s,%s)"%(self.name, self.url)
 
     def __str__(self):
-        return"Name: "+self.__name+"\nURL: "+self.__url
-
-    def __hash__(self):
-        return hash(self.__repr__())
+        return"Name: "+self.name+"\nURL: "+self.url+"\nDegree: "+str(self.degree)
 
     def __eq__(self, other):
         if isinstance(other, Actor):
-            return (self.url == other.get_url())
+            return self.url == other.url
         else:
             return False
 
-    def get_url(self):
-        return self.__url
+    def print_connections(self):
+        for key in self.connections:
+            print(key+" : " + self.connections[key])
 
-    def get_name(self):
-        return self.__name
+    #Movie can be an URL or a list of URLs
+    def add_connection(self, actor, movie):
+        if isinstance(movie, Movie):
+            movie = movie.url
+        if isinstance(actor, Actor):
+            actor = actor.url
+        self.connections[actor] = movie
