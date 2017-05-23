@@ -2,7 +2,6 @@ from lxml import html
 import requests
 from actor import Actor
 from movie import Movie
-from connection import Connection
 from collections import deque
 
 #actor_dict[key = URL, value = Actor class]
@@ -19,8 +18,12 @@ processed_actors = set()
 
 processing_queue = deque()
 
+total_requests = 0
+total_request_time = 0
+total_cast_time = 0
+total_strip_time = 0
 
-def IMDB_scraper(actor_name, degree, thr_mov = float('Inf'), thr_act = float('Inf')):
+def IMDB_scraper(actor_name, degree, thr_mov, thr_act):
     root_actor = find_actor(actor_name)
     add_to_queue(root_actor.url)
     for i in range(degree):
@@ -30,35 +33,6 @@ def IMDB_scraper(actor_name, degree, thr_mov = float('Inf'), thr_act = float('In
             create_edges(act,i, thr_mov, thr_act)
     for act in processing_queue:
         create_border(act, degree, thr_mov, thr_act)
-
-
-
-
-def scrape_actor(actor, actor_dict, movie_set, degree):
-    print(actor.get_name())
-    frontier_cast = []
-    movies = list_movies_of_actor(actor.get_url())
-    movie_idx = 3
-    if len(movies) < 3:
-        movie_idx = len(movies)
-    #for movie in movies:
-    for i in range(movie_idx):
-        movie = movies[i]
-        if not movie.get_url() in movie_set:
-            movie_set.add(movie.get_url())
-            print(movie.get_title())
-            cast = list_cast_of_movie(movie.get_url())
-            #for co_actor in cast:
-            idx = 5
-            if len(cast) < 5:
-                idx = len(cast)
-            for i in range(idx):
-                co_actor = cast[i]
-                if not co_actor.get_name() in actor_dict:
-                    connect = Connection(actor.get_name(), co_actor.get_name(), degree, movie.get_title())
-                    actor_dict[co_actor.get_name()] = connect
-                    frontier_cast.append(co_actor)
-    return actor_dict, movie_set, frontier_cast
 
 
 
@@ -130,18 +104,6 @@ def strip_url(url):
     return url
 
 
-def get_path(dict, actor):
-    if actor in dict:
-        connect = dict[actor]
-        print("START PATH")
-        while connect.get_degree() > 0:
-            print(connect.get_to()+" --["+connect.get_movie()+"]--> "+connect.get_from())
-            connect=dict[connect.get_from()]
-        print("END PATH\n")
-    else:
-        print("ACTOR: "+actor+" NOT FOUND")
-
-
 def add_to_queue(actor_url):
     if not actor_url in actors_scraped:
         processing_queue.append(actor_url)
@@ -184,40 +146,32 @@ def create_border(actor_url, degree, thr_mov, thr_act):
     processed_actors.add(actor_url)
 
 
-
-# kevin = find_actor("Kevin Bacon")
-# kevins_movies = list_movies_of_actor(kevin.get_url())
-# for mov in kevins_movies:
-#     cast_of_movie = list_cast_of_movie(mov.get_url())
-#     for co_actor in cast_of_movie:
-#         if not co_actor.get_url() == kevin.get_url():
-#             kevin.add_co_actor(co_actor.get_name(), mov.get_title())
-#             print(co_actor.get_name()+" : "+mov.get_title())
-
-#
-# root_actor = find_actor("Kevin Bacon")
-# mov_url = list_movies_of_actor(root_actor.url, 1)[0]
-#
-# print(list_cast_of_movie(mov_url, threshold=5))
-# print(list_cast_of_movie(mov_url, threshold=7))
-# print(list_cast_of_movie(mov_url))
-# print(list_cast_of_movie(mov_url, cast_lookup=False))
-# print(list_cast_of_movie(mov_url))
+def find_shortest_path(start, end, path=[]):
+    path = path + [start]
+    if start == end:
+        return path
+    shortest = None
+    for node in actor_dict[start].connections:
+        if node not in path:
+            newpath = find_shortest_path(node, end, path)
+            if newpath:
+                if not shortest or len(newpath) < len(shortest):
+                    shortest = newpath
 
 
+    return shortest
 
-
-#
-#
-#
-#
-# dict = IMDB_scraper("Kevin Bacon", 3 )
-# print(dict["Mark Wahlberg"])
-# print(dict["Christian Bale"])
-# print(dict["Cate Blanchett"])
-# print(dict["Jake Gyllenhaal"])
-# get_path(dict, "Cate Blanchett")
-# get_path(dict, "Jake Gyllenhaal")
+def shortest_path(start, end):
+    shortest = find_shortest_path(start, end)
+    return_string = ''
+    act = actor_dict[shortest[0]]
+    for i in range(1,len(shortest)):
+        m = act.connections[shortest[i]]
+        mov = movie_dict[m]
+        act_to = actor_dict[shortest[i]]
+        return_string += act.name + '--('+mov.title+')-->' + act_to.name + '\n'
+        act = act_to
+    return return_string
 
 def print_connections(actor_url):
     actor = actor_dict[actor_url]
@@ -235,10 +189,34 @@ if __name__ == "__main__":
         thr_actor = int(input("Amount of co-actors:"))
         thr_movie = int(input("Amount of movies:"))
 
-    print("Scraping started")
-    IMDB_scraper(actor,int(degree),thr_act=thr_actor,thr_mov=thr_movie)
-    for act in actor_dict:
-        actor = actor_dict[act]
-        print(actor)
-        print_connections(act)
+    else:
+        thr_actor = float('Inf')
+        thr_movie = float('Inf')
 
+    print("Scraping started")
+    IMDB_scraper(actor,int(degree),thr_actor,thr_movie)
+    print("Scraping done, graph created with "+actor+" as root nodes")
+    print("Choose from following functionalities")
+    exit = False
+    while(not exit):
+        get_input = input("[find/path/exit]:")
+        if get_input == "find":
+            act = input("Name of actor:")
+            try:
+                act_url = translate_actor_to_url[act]
+                print(actor_dict[act_url])
+            except KeyError:
+                print("Actor not found in graph")
+        elif get_input == "exit":
+            break
+        elif get_input == "path":
+            from_act = input("Actor to start from: ")
+            to_act = input("Actor to end with: ")
+            try:
+                from_act = translate_actor_to_url[from_act]
+                to_act = translate_actor_to_url[to_act]
+                print(shortest_path(from_act, to_act))
+            except KeyError:
+                print("One of the actors is not in the graph")
+
+    print("exiting")
