@@ -156,9 +156,8 @@ The co-actor also adds the actor to its connections.
 """
 def create_edges(actor_url,degree, thr_mov, thr_act):
     mov_lst = list_movies_of_actor(actor_url, limit=thr_mov)
-    unique_actors = set()
     actor = actor_dict[actor_url]
-    unique_actors |= set(list(actor.connections.keys()))
+    unique_actors = set(list(actor.connections.keys()))
     print("Getting edges for: "+actor.name)
     actor.degree = degree
     for m in mov_lst:
