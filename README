@@ -1,4 +1,6 @@
 Scraper.py scrapes pages from IMDB and creates a graph with actors as nodes and movies being the edges.
+To run the project use Python3.
+In linux terminal use following command: python3 scraper.py
 When Scraper.py is run, there will be some questions in the terminal.
 1) Enter an actor:
     Give an actor name and the page of this actor will be searched on IMDB.

@@ -1,4 +1,7 @@
 class Movie:
+    """
+    Contains data about a movie 
+    """
     def __init__(self, title, url):
         self.title = title
         self.url = url

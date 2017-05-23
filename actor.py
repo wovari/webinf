@@ -2,6 +2,9 @@ from movie import Movie
 
 
 class Actor:
+    """
+    Contains data of an actor
+    """
 
     def __init__(self, name, url):
         self.name = name
@@ -21,11 +24,6 @@ class Actor:
         else:
             return False
 
-    def print_connections(self):
-        for key in self.connections:
-            print(key+" : " + self.connections[key])
-
-    #Movie can be an URL or a list of URLs
     def add_connection(self, actor, movie):
         if isinstance(movie, Movie):
             movie = movie.url

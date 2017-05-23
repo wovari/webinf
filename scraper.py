@@ -4,10 +4,8 @@ from actor import Actor
 from movie import Movie
 from collections import deque
 
-#actor_dict[key = URL, value = Actor class]
 actor_dict = {}
 
-#movie_dict[key = URL, value = Movie class]
 movie_dict = {}
 
 translate_actor_to_url = {}
@@ -17,11 +15,6 @@ actors_scraped = set()
 processed_actors = set()
 
 processing_queue = deque()
-
-total_requests = 0
-total_request_time = 0
-total_cast_time = 0
-total_strip_time = 0
 
 def IMDB_scraper(actor_name, degree, thr_mov, thr_act):
     root_actor = find_actor(actor_name)
@@ -39,7 +32,7 @@ def IMDB_scraper(actor_name, degree, thr_mov, thr_act):
 def find_actor(actor_name):
     search_url = "http://www.imdb.com/find?q=" + actor_name
     cast_page = requests.get(search_url)
-    cast_tree = html.fromstring(cast_page.text)  # Build the DOM
+    cast_tree = html.fromstring(cast_page.text)
     path_to_first_actor = cast_tree.xpath('(//table[@class="findList"])[1]/tr[1]/td[2]/a')
     actor_link = path_to_first_actor[0]
     actor_url = strip_url("http://www.imdb.com" + actor_link.attrib.get('href'))
