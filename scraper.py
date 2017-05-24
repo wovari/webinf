@@ -232,7 +232,8 @@ def find_shortest_path(q, seen_set, end):
 """
 shortest_path is a function that calls find_shortest_path and translates the returned list of URLs to readable connections.
     start -- URL of actor from where to start
-    end -- URL of actor that needs to be found"""
+    end -- URL of actor that needs to be found
+"""
 def shortest_path(start, end):
     q = deque()
     q.append([start])
