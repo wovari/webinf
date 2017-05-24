@@ -33,34 +33,21 @@ The nodes (actors) are stored in actor_dict and the edges are stored in the Acto
     thr_mov -- Limit on how many movies are selected
     thr_act -- Limit on how many actors are selected 
 """
-def IMDB_scraper(actor_name, degree, thr_mov, thr_act):
-    root_actor = find_actor(actor_name)
-    add_to_queue(root_actor.url)
+def IMDB_scraper(actor_url, degree, thr_mov, thr_act):
+    actor_name = get_actor_name(actor_url)
+    act = Actor(actor_name, actor_url)
+    act.degree = 0
+    actor_dict[actor_url] = act
+    translate_actor_to_url[actor_name] = actor_url
+    add_to_queue(actor_url)
     for i in range(degree):
         ctr = len(processing_queue)
         for j in range(ctr):
             act = processing_queue.popleft()
             create_edges(act,i, thr_mov, thr_act)
-    for act in processing_queue:
-        create_border(act, degree, thr_mov, thr_act)
-
-
-"""
-find_actor searches on IMDB for the actor with given name and returns an Actor object.
-The actor is searched with the search page of IMDB where the scraper selects the first actor in the returned page.
-    actor_name -- Name of the actor that will be searched.
-"""
-def find_actor(actor_name):
-    search_url = "http://www.imdb.com/find?q=" + actor_name
-    cast_page = requests.get(search_url)
-    cast_tree = html.fromstring(cast_page.text)
-    path_to_first_actor = cast_tree.xpath('(//table[@class="findList"])[1]/tr[1]/td[2]/a')
-    actor_link = path_to_first_actor[0]
-    actor_url = strip_url("http://www.imdb.com" + actor_link.attrib.get('href'))
-    act = Actor(actor_name, actor_url)
-    actor_dict[actor_url] = act
-    translate_actor_to_url[actor_name] = actor_url
-    return act
+    if degree > 0:
+        for act in processing_queue:
+            create_border(act, degree, thr_mov, thr_act)
 
 """
 list_movies_of_actor is a function that returns the list with movies where the actor played a role in.
@@ -72,12 +59,15 @@ def list_movies_of_actor(actor_url, limit=float('inf')):
     movie_lst = []
     cast_page = requests.get(actor_url)
     cast_tree = html.fromstring(cast_page.text)
-    path_to_movies = cast_tree.xpath('//div[@class="filmo-category-section"]'
-                                     '/div[not(text()[contains(., "TV Series")])]/b/a')
+    path_to_movies = cast_tree.xpath('//div[@id="filmography"]'
+                                     '//div[(contains(@id, "actor") or contains(@id, "actress")) '
+                                     'and not(text()[contains(., "TV Series")])]/b/a')
+    print(len(path_to_movies))
     for mov in path_to_movies:
         if limit <= 0:
             break
         movie_name = mov.text
+        print(movie_name)
         movie_url = strip_url("http://www.imdb.com" + mov.attrib.get('href'))
         if not movie_url in movie_dict:
             movie_dict[movie_url] = Movie(movie_name, movie_url)
@@ -129,8 +119,9 @@ strip_url is a function that strips a URL string of unnecessary data and returns
     url -- url that needs to be stripped
 """
 def strip_url(url):
-    url = url.split("?")[0]
-    url = url[:-1]
+    if "?" in url:
+        url = url.split("?")[0]
+        url = url[:-1]
     return url
 
 """
@@ -154,7 +145,7 @@ The co-actor also adds the actor to its connections.
     thr_mov -- limit for the movie selection
     thr_act -- limit for the actor selection
 """
-def create_edges(actor_url,degree, thr_mov, thr_act):
+def create_edges(actor_url, degree, thr_mov, thr_act):
     mov_lst = list_movies_of_actor(actor_url, limit=thr_mov)
     actor = actor_dict[actor_url]
     unique_actors = set(list(actor.connections.keys()))
@@ -167,6 +158,8 @@ def create_edges(actor_url,degree, thr_mov, thr_act):
                 actor.add_connection(a, m)
                 if a in actor_dict:
                     tmp_act = actor_dict[a]
+                    if -1 < tmp_act.degree < (degree - 1):
+                        actor.degree = tmp_act.degree + 1
                     if not actor_url in tmp_act.connections:
                         tmp_act.add_connection(actor_url, m)
                         actor_dict[a] = tmp_act
@@ -194,34 +187,60 @@ def create_border(actor_url, degree, thr_mov, thr_act):
         for a in act_lst:
             if not a in unique_actors and a in actors_encountered and a != actor_url:
                 actor.add_connection(a, m)
+                if a in actor_dict:
+                    tmp_act = actor_dict[a]
+                    if not actor_url in tmp_act.connections:
+                        tmp_act.add_connection(actor_url, m)
+                        actor_dict[a] = tmp_act
                 unique_actors.add(a)
     actor_dict[actor_url] = actor
 
 """
-find_shortest_path is a recursive function that tries to find the shortest path between two vertices. 
-    start -- URL of actor from where to start
-    end -- URL of actor that needs to be found
-    path -- the current path
+get_actor_name requests the actor page which URL is given, and with the aid of XPath returns the name of 
+the actor.
+    actor_url -- URL string of the actor's page
 """
-def find_shortest_path(start, end, path=[]):
-    path = path + [start]
-    if start == end:
-        return path
-    shortest = None
-    for node in actor_dict[start].connections:
-        if node not in path:
-            newpath = find_shortest_path(node, end, path)
-            if newpath:
-                if not shortest or len(newpath) < len(shortest):
-                    shortest = newpath
-    return shortest
+def get_actor_name(actor_url):
+    cast_page = requests.get(actor_url)
+    cast_tree = html.fromstring(cast_page.text)
+    actor_name = cast_tree.xpath('//span[@itemprop = "name"]/text()')
+    return actor_name[0]
 
+
+"""
+find_shortest_path is a recursive BFS function that tries to find the shortest path between two vertices.
+    q -- deque containing lists of actor URLs that still need to be handled
+    seen_set -- set that contains the URLs of all actors that are already handled
+    end -- URL of actor that needs to be found
+"""
+def find_shortest_path(q, seen_set, end):
+    lst = q.popleft()
+    el = lst[-1]
+    seen_set.add(el)
+    connections = list(actor_dict[el].connections.keys())
+    for i in range(len(connections)):
+        c = connections[i]
+        if c not in seen_set:
+            if c == end:
+                lst.append(c)
+                return lst, True, q, seen_set
+            else:
+                cpy_lst = lst[:]
+                cpy_lst.append(c)
+                q.append(cpy_lst)
+    return lst, False, q, seen_set
 """
 shortest_path is a function that calls find_shortest_path and translates the returned list of URLs to readable connections.
     start -- URL of actor from where to start
     end -- URL of actor that needs to be found"""
 def shortest_path(start, end):
-    shortest = find_shortest_path(start, end)
+    q = deque()
+    q.append([start])
+    path_set = set()
+    found = False
+    while(not found):
+        shortest, found, new_q, path_set = find_shortest_path(q, path_set, end)
+        q = new_q
     return_string = ''
     act = actor_dict[shortest[0]]
     for i in range(1,len(shortest)):
@@ -234,7 +253,7 @@ def shortest_path(start, end):
 
 
 if __name__ == "__main__":
-    actor = input("Enter an actor:")
+    actor = strip_url(input("Enter an actor url:"))
     degree = int(input("Degree from actor:"))
     thr = input("Do you want to limit searches? [y/n]")
     if thr == "y":
