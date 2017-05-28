@@ -3,6 +3,15 @@ import requests
 from actor import Actor
 from movie import Movie
 from collections import deque
+from contextlib import contextmanager
+from time import perf_counter
+
+@contextmanager
+def timing(label: str):
+    t0 = perf_counter()
+    yield lambda: (label, t1 - t0)
+    t1 = perf_counter()
+
 
 """
 Actor and Movie entities are saved in a dictionary with key the URL of their page on IMDB.
@@ -34,20 +43,24 @@ The nodes (actors) are stored in actor_dict and the edges are stored in the Acto
     thr_act -- Limit on how many actors are selected 
 """
 def IMDB_scraper(actor_url, degree, thr_mov, thr_act):
-    actor_name = get_actor_name(actor_url)
-    act = Actor(actor_name, actor_url)
-    act.degree = 0
-    actor_dict[actor_url] = act
-    translate_actor_to_url[actor_name] = actor_url
-    add_to_queue(actor_url)
-    for i in range(degree):
-        ctr = len(processing_queue)
-        for j in range(ctr):
-            act = processing_queue.popleft()
-            create_edges(act,i, thr_mov, thr_act)
-    if degree > 0:
-        for act in processing_queue:
-            create_border(act, degree, thr_mov, thr_act)
+    with timing('Total scraping time') as total_scrape:
+        with timing('Find initial actor ') as initial_find:
+            actor_name = get_actor_name(actor_url)
+        print('%s[%.6f s]: ' % initial_find() + str(actor_name))
+        act = Actor(actor_name, actor_url)
+        act.degree = 0
+        actor_dict[actor_url] = act
+        translate_actor_to_url[actor_name] = actor_url
+        add_to_queue(actor_url)
+        for i in range(degree):
+            ctr = len(processing_queue)
+            for j in range(ctr):
+                act = processing_queue.popleft()
+                create_edges(act,i, thr_mov, thr_act)
+        if degree > 0:
+            for act in processing_queue:
+                create_border(act, degree, thr_mov, thr_act)
+    print('%s: %.6f s'% total_scrape())
 
 """
 list_movies_of_actor is a function that returns the list with movies where the actor played a role in.
@@ -201,7 +214,12 @@ the actor.
     actor_url -- URL string of the actor's page
 """
 def get_actor_name(actor_url):
+    if actor_url[-1] == ' ':
+        actor_url = actor_url.replace(' ', '')
     cast_page = requests.get(actor_url)
+    if cast_page.status_code == 404:
+        print("Page not found: %s" % actor_url)
+        exit(0)
     cast_tree = html.fromstring(cast_page.text)
     actor_name = cast_tree.xpath('//span[@itemprop = "name"]/text()')
     return actor_name[0]
